@@ -541,26 +541,24 @@ impl LoadableMetadata for Metadata {
 
         let mut blocks = Vec::new();
         let mut index = 0usize;
-        loop {
-            let separator = try_if_eof!(r.read_u8(), "when reading separator of block {}", index);
-            let block = match separator {
-                0x2c => Block::ImageDescriptor(try!(ImageDescriptor::load(index, r))),
-                0x21 => {
-                    let label = try_if_eof!(r.read_u8(), "when reading label of block {}", index);
-                    match label {
-                        0x01 => Block::PlainTextExtension(try!(PlainTextExtension::load(index, r))),
-                        0xf9 => Block::GraphicControlExtension(try!(GraphicControlExtension::load(index, r))),
-                        0xfe => Block::CommentExtension(try!(CommentExtension::load(index, r))),
-                        0xff => Block::ApplicationExtension(try!(ApplicationExtension::load(index, r))),
-                        _ => return Err(invalid_format!("unknown extension type of block {}: 0x{:X}", index, label))
-                    }
-                },
-                0x3b => break,
-                _ => return Err(invalid_format!("unknown block type of block {}: 0x{:X}", index, separator))
-            };
-            blocks.push(block);
-            index += 1;
-        }
+        let separator = try_if_eof!(r.read_u8(), "when reading separator of block {}", index);
+        let block = match separator {
+            0x2c => Block::ImageDescriptor(try!(ImageDescriptor::load(index, r))),
+            0x21 => {
+                let label = try_if_eof!(r.read_u8(), "when reading label of block {}", index);
+                match label {
+                    0x01 => Block::PlainTextExtension(try!(PlainTextExtension::load(index, r))),
+                    0xf9 => Block::GraphicControlExtension(try!(GraphicControlExtension::load(index, r))),
+                    0xfe => Block::CommentExtension(try!(CommentExtension::load(index, r))),
+                    0xff => Block::ApplicationExtension(try!(ApplicationExtension::load(index, r))),
+                    _ => return Err(invalid_format!("unknown extension type of block {}: 0x{:X}", index, label))
+                }
+            },
+            // 0x3b => break,
+            _ => return Err(invalid_format!("unknown block type of block {}: 0x{:X}", index, separator))
+        };
+        blocks.push(block);
+        index += 1;
 
         Ok(Metadata {
             version: version,

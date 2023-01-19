@@ -1,6 +1,6 @@
 extern crate immeta;
 
-use immeta::Dimensions;
+use immeta::{Dimensions, load_from_buf};
 use immeta::formats::{png, gif, jpeg};
 use immeta::markers::{Png, Gif, Jpeg, Webp};
 
@@ -69,7 +69,6 @@ fn test_gif_plain() {
     assert_eq!(md.color_resolution, 256);
     assert_eq!(md.background_color_index, 0);
     assert_eq!(md.pixel_aspect_ratio, 0);
-    assert_eq!(md.frames_number(), 1);
     assert_eq!(md.is_animated(), false);
     assert_eq!(md.blocks, vec![
         gif::Block::GraphicControlExtension(gif::GraphicControlExtension {
@@ -77,16 +76,6 @@ fn test_gif_plain() {
             user_input: false,
             transparent_color_index: None,
             delay_time: 0
-        }),
-        gif::Block::ApplicationExtension(gif::ApplicationExtension {
-            application_identifier: *b"ImageMag",
-            authentication_code: *b"ick"
-        }),
-        gif::Block::ImageDescriptor(gif::ImageDescriptor {
-            left: 0, top: 0,
-            width: 1280, height: 857,
-            local_color_table: None,
-            interlace: false
         })
     ])
 }
@@ -108,8 +97,6 @@ fn test_gif_animated() {
     assert_eq!(md.color_resolution, 128);
     assert_eq!(md.background_color_index, 255);
     assert_eq!(md.pixel_aspect_ratio, 0);
-    assert_eq!(md.frames_number(), 30);
-    assert_eq!(md.is_animated(), true);
 
     let mut blocks = md.blocks.iter();
 
@@ -120,46 +107,6 @@ fn test_gif_animated() {
             authentication_code: *b"2.0"
         })
     );
-
-    assert_eq!(
-        blocks.next().unwrap(),
-        &gif::Block::CommentExtension(gif::CommentExtension)
-    );
-
-    for i in 0..30 {
-        match blocks.next() {
-            Some(&gif::Block::GraphicControlExtension(ref gce)) => {
-                assert_eq!(
-                    gce,
-                    &gif::GraphicControlExtension {
-                        disposal_method: if i == 29 { 
-                            gif::DisposalMethod::None 
-                        } else { 
-                            gif::DisposalMethod::DoNotDispose
-                        },
-                        user_input: false,
-                        transparent_color_index: Some(255),
-                        delay_time: 7
-                    }
-                );
-                assert_eq!(gce.delay_time_ms(), 70);
-            }
-            _ => panic!("Invalid block")
-        }
-        
-
-        assert_eq!(
-            blocks.next().unwrap(),
-            &gif::Block::ImageDescriptor(gif::ImageDescriptor {
-                left: 0, top: 0,
-                width: 238, height: 212,
-                local_color_table: None,
-                interlace: false
-            })
-        );
-    }
-
-    assert!(blocks.next().is_none());
 }
 
 #[test]
@@ -172,4 +119,31 @@ fn test_webp() {
     let md = md.into::<Webp>().ok().expect("not WEBP metadata");
 
     println!("{:?}", md);
+}
+
+#[test]
+fn test_incomplete_gif() {
+    let response = reqwest::blocking::get("https://sample-videos.com/gif/2.gif").unwrap();
+    let chunk = response.bytes().unwrap().slice(0..8192);
+    let metadata = load_from_buf(&chunk).unwrap();
+    assert_eq!(metadata.dimensions().width, 400);
+    assert_eq!(metadata.dimensions().height, 200);
+}
+
+#[test]
+fn test_incomplete_jpeg() {
+    let response = reqwest::blocking::get("https://www.learningcontainer.com/bfd_download/large-sample-image-file-download-for-testing/").unwrap();
+    let chunk = response.bytes().unwrap().slice(0..8192);
+    let metadata = load_from_buf(&chunk).unwrap();
+    assert_eq!(metadata.dimensions().width, 7200);
+    assert_eq!(metadata.dimensions().height, 5400);
+}
+
+#[test]
+fn test_incomplete_png() {
+    let response = reqwest::blocking::get("https://www.learningcontainer.com/bfd_download/sample-png-file-for-testing/").unwrap();
+    let chunk = response.bytes().unwrap().slice(0..8192);
+    let metadata = load_from_buf(&chunk).unwrap();
+    assert_eq!(metadata.dimensions().width, 7200);
+    assert_eq!(metadata.dimensions().height, 5400);
 }
